@@ -23,7 +23,7 @@ interface Manifest {
 }
 
 /** npm adds these on its own; everything else must be covered by the whitelist. */
-const ALWAYS_SHIPPED = new Set(["package.json", "README.md"]);
+const ALWAYS_SHIPPED = new Set(["package.json", "README.md", "LICENSE"]);
 
 test("the packed tarball matches the manifest whitelist", () => {
 	const manifest = JSON.parse(readFileSync(join(PACKAGE_ROOT, "package.json"), "utf8")) as Manifest;

@@ -14,6 +14,14 @@ LLM が reasoning → tool call → reasoning… と長いループを回る間�
 ## インストール
 
 ```bash
+pi install git:github.com/kurowashi/pi-reminder
+```
+
+ref を固定する場合は `pi install git:github.com/kurowashi/pi-reminder@<tag|commit>`。
+
+ローカルの作業コピーを使う場合:
+
+```bash
 pi install /path/to/pi-reminder
 ```
 
@@ -110,3 +118,6 @@ npm test             # 全テスト
 
 ローカルの git フックは [lefthook](lefthook.yml) が管理する。フックは利便性のためのもので、
 完了条件は常に `npm run verify` が通ること(CI も同じコマンドを Node 22.19 / 24 で実行する)。
+フックの有効化は `npx lefthook install` を手動で実行する(`package.json` の lifecycle script には
+置かない: `pi install git:...` は `npm install --omit=dev` を実行するため、devDependency の
+lefthook が無い状態で script が走るとインストールごと失敗する)。

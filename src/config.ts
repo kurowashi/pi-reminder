@@ -53,7 +53,7 @@ export interface LoadedReminderConfig {
 }
 
 export function agentDir(): string {
-	const override = process.env.PI_CODING_AGENT_DIR?.trim();
+	const override = process.env["PI_CODING_AGENT_DIR"]?.trim();
 	return override && override.length > 0 ? override : path.join(os.homedir(), ".pi", "agent");
 }
 
@@ -109,19 +109,18 @@ function stringOr(value: unknown, key: string, fallback: string, warnings: strin
 /** Validate raw configs (lowest precedence first) into a complete config. */
 export function resolveConfig(raws: Record<string, unknown>[], warnings: string[]): ReminderConfig {
 	const raw: Record<string, unknown> = Object.assign({}, ...raws);
-	const mode = raw.mode === undefined || raw.mode === "transient" || raw.mode === "persistent"
-		? raw.mode
-		: undefined;
-	if (raw.mode !== undefined && mode === undefined) {
+	const rawMode = raw["mode"];
+	const mode = rawMode === undefined || rawMode === "transient" || rawMode === "persistent" ? rawMode : undefined;
+	if (rawMode !== undefined && mode === undefined) {
 		warnings.push(`reminder: mode must be "transient" or "persistent"; using ${DEFAULT_CONFIG.mode}`);
 	}
 	return {
-		enabled: booleanOr(raw.enabled, "enabled", DEFAULT_CONFIG.enabled, warnings),
-		everyChars: positiveIntOr(raw.everyChars, "everyChars", DEFAULT_CONFIG.everyChars, warnings),
-		countThinking: booleanOr(raw.countThinking, "countThinking", DEFAULT_CONFIG.countThinking, warnings),
+		enabled: booleanOr(raw["enabled"], "enabled", DEFAULT_CONFIG.enabled, warnings),
+		everyChars: positiveIntOr(raw["everyChars"], "everyChars", DEFAULT_CONFIG.everyChars, warnings),
+		countThinking: booleanOr(raw["countThinking"], "countThinking", DEFAULT_CONFIG.countThinking, warnings),
 		mode: (mode as InjectMode | undefined) ?? DEFAULT_CONFIG.mode,
-		display: booleanOr(raw.display, "display", DEFAULT_CONFIG.display, warnings),
-		prompt: stringOr(raw.prompt, "prompt", DEFAULT_CONFIG.prompt, warnings),
+		display: booleanOr(raw["display"], "display", DEFAULT_CONFIG.display, warnings),
+		prompt: stringOr(raw["prompt"], "prompt", DEFAULT_CONFIG.prompt, warnings),
 	};
 }
 

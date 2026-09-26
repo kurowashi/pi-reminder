@@ -1,15 +1,27 @@
-import test from "node:test";
 import assert from "node:assert/strict";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
+import test from "node:test";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import reminderExtension from "../src/index.ts";
+import reminderExtension from "../../src/index.ts";
 
-type Handler = (event: any, ctx: ExtensionContext) => unknown;
+type Handler = (event: unknown, ctx: ExtensionContext) => unknown;
+
+/** A slash command as registered by the extension. */
+type CommandHandler = (args: string, ctx: ExtensionContext) => unknown;
+
+/** The custom_message draft this extension returns at turn end. */
+interface ReminderEntry {
+	type: string;
+	customType: string;
+	display: boolean;
+	content: string;
+}
 
 interface Harness {
-	emit(event: string, data: unknown): any;
+	emit<T = unknown>(event: string, data: unknown): T;
+	runCommand(args?: string): Promise<unknown>;
 	ctx: ExtensionContext;
 	statuses: (string | undefined)[];
 	notifications: string[];
@@ -17,6 +29,7 @@ interface Harness {
 
 function harness(cwd: string, trusted = true): Harness {
 	const handlers = new Map<string, Handler[]>();
+	const commands = new Map<string, CommandHandler>();
 	const statuses: (string | undefined)[] = [];
 	const notifications: string[] = [];
 	const api = {
@@ -26,7 +39,9 @@ function harness(cwd: string, trusted = true): Harness {
 			handlers.set(event, list);
 			return () => {};
 		},
-		registerCommand(_name: string, _options: unknown) {},
+		registerCommand(name: string, command: { handler: CommandHandler }) {
+			commands.set(name, command.handler);
+		},
 	} as unknown as ExtensionAPI;
 
 	const ctx = {
@@ -50,10 +65,15 @@ function harness(cwd: string, trusted = true): Harness {
 		ctx,
 		statuses,
 		notifications,
-		emit(event, data) {
+		runCommand(args = "") {
+			const handler = commands.get("reminder");
+			if (!handler) throw new Error("the reminder command is not registered");
+			return Promise.resolve(handler(args, ctx));
+		},
+		emit<T = unknown>(event: string, data: unknown): T {
 			let result: unknown;
 			for (const handler of handlers.get(event) ?? []) result = handler(data, ctx) ?? result;
-			return result;
+			return result as T;
 		},
 	};
 }
@@ -68,13 +88,13 @@ function withTempDir<T>(fn: (dir: string) => T): T {
 }
 
 function withAgentDir<T>(dir: string, fn: () => T): T {
-	const saved = process.env.PI_CODING_AGENT_DIR;
-	process.env.PI_CODING_AGENT_DIR = dir;
+	const saved = process.env["PI_CODING_AGENT_DIR"];
+	process.env["PI_CODING_AGENT_DIR"] = dir;
 	try {
 		return fn();
 	} finally {
-		if (saved === undefined) delete process.env.PI_CODING_AGENT_DIR;
-		else process.env.PI_CODING_AGENT_DIR = saved;
+		if (saved === undefined) delete process.env["PI_CODING_AGENT_DIR"];
+		else process.env["PI_CODING_AGENT_DIR"] = saved;
 	}
 }
 
@@ -135,13 +155,15 @@ test("transient mode injects the prompt into the next request exactly once", () 
 		h.emit("message_end", textEvent("678901"));
 		assert.equal(h.statuses.at(-1), "🔔 11/10 →");
 
-		const injected = h.emit("context", {
+		const injected = h.emit<{ messages: Array<{ role: string; content: string }> }>("context", {
 			type: "context",
 			messages: [{ role: "user", content: "hi", timestamp: 1 }],
 		});
 		assert.equal(injected.messages.length, 2);
-		assert.equal(injected.messages[1].role, "user");
-		assert.equal(injected.messages[1].content, "[PERIODIC REMINDER]\nCHECK THE LIST");
+		const reminder = injected.messages[1];
+		assert.ok(reminder, "the reminder must be appended");
+		assert.equal(reminder.role, "user");
+		assert.equal(reminder.content, "[PERIODIC REMINDER]\nCHECK THE LIST");
 		assert.equal(h.statuses.at(-1), "🔔 0/10");
 
 		assert.equal(h.emit("context", { type: "context", messages: [] }), undefined);
@@ -200,13 +222,15 @@ test("persistent mode stores the reminder at turn end and continues", () => {
 			"persistent mode must not inject transiently",
 		);
 
-		const result = h.emit("turn_end", turnEnd());
+		const result = h.emit<{ continue: boolean; entries: ReminderEntry[] }>("turn_end", turnEnd());
 		assert.equal(result.continue, true);
 		assert.equal(result.entries.length, 1);
-		assert.equal(result.entries[0].type, "custom_message");
-		assert.equal(result.entries[0].customType, "reminder");
-		assert.equal(result.entries[0].display, true);
-		assert.equal(result.entries[0].content, "[PERIODIC REMINDER]\nREVIEW");
+		const entry = result.entries[0];
+		assert.ok(entry, "the reminder entry must be appended");
+		assert.equal(entry.type, "custom_message");
+		assert.equal(entry.customType, "reminder");
+		assert.equal(entry.display, true);
+		assert.equal(entry.content, "[PERIODIC REMINDER]\nREVIEW");
 
 		assert.equal(h.emit("turn_end", turnEnd()), undefined, "must not inject twice");
 	});
@@ -220,7 +244,39 @@ test("persistent mode does not continue on aborted or error turns", () => {
 		h.emit("message_end", textEvent("x"));
 		assert.equal(h.emit("turn_end", turnEnd({ outcome: "aborted" })), undefined);
 
-		const result = h.emit("turn_end", turnEnd());
+		const result = h.emit<{ continue: boolean }>("turn_end", turnEnd());
 		assert.equal(result.continue, true, "the pending reminder survives until a completed turn");
 	});
+});
+
+test("the /reminder command acts and reports, and rejects unknown actions", async () => {
+	const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "pi-reminder-command-"));
+	const home = fs.mkdtempSync(path.join(os.tmpdir(), "pi-reminder-command-"));
+	const saved = process.env["PI_CODING_AGENT_DIR"];
+	process.env["PI_CODING_AGENT_DIR"] = home;
+	try {
+		fs.mkdirSync(path.join(cwd, ".pi"), { recursive: true });
+		fs.writeFileSync(
+			path.join(cwd, ".pi", "reminder.json"),
+			JSON.stringify({ everyChars: 1000, prompt: "CHECK", countThinking: false }),
+		);
+		const h = harness(cwd);
+		start(h);
+
+		await h.runCommand("now");
+		assert.notEqual(h.emit("context", { type: "context", messages: [] }), undefined, "now must schedule one injection");
+
+		await h.runCommand("status");
+		const report = h.notifications.at(-1) ?? "";
+		assert.match(report, /\(transient, every 1000 chars\)/, "status must report the effective config");
+		assert.match(report, /prompt: 5 chars/);
+
+		await h.runCommand("bogus");
+		assert.match(h.notifications.at(-1) ?? "", /usage: \/reminder/, "unknown actions must warn, not act");
+	} finally {
+		if (saved === undefined) delete process.env["PI_CODING_AGENT_DIR"];
+		else process.env["PI_CODING_AGENT_DIR"] = saved;
+		fs.rmSync(cwd, { recursive: true, force: true });
+		fs.rmSync(home, { recursive: true, force: true });
+	}
 });

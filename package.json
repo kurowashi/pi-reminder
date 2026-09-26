@@ -2,29 +2,34 @@
 	"name": "pi-reminder",
 	"version": "0.1.0",
 	"description": "Periodic prompt injection for Pi: remind the model on a character budget",
-	"keywords": [
-		"pi-package",
-		"pi",
-		"reminder",
-		"prompt-injection",
-		"checklist"
-	],
+	"keywords": ["pi-package", "pi", "reminder", "prompt-injection", "checklist"],
 	"license": "MIT",
 	"type": "module",
-	"pi": {
-		"extensions": [
-			"./src/index.ts"
-		]
+	"engines": {
+		"node": ">=22.19.0"
 	},
+	"pi": {
+		"extensions": ["./src/index.ts"]
+	},
+	"files": ["src"],
 	"peerDependencies": {
 		"@earendil-works/pi-coding-agent": "*"
 	},
 	"peerDependenciesMeta": {
-		"@earendil-works/pi-coding-agent": {
-			"optional": true
-		}
+		"@earendil-works/pi-coding-agent": { "optional": true }
+	},
+	"devDependencies": {
+		"@biomejs/biome": "2.5.14",
+		"@earendil-works/pi-coding-agent": "0.87.1",
+		"@types/node": "^24.0.0",
+		"lefthook": "2.1.14",
+		"typescript": "7.0.2"
 	},
 	"scripts": {
-		"test": "node --test test/*.test.ts"
+		"check": "biome check . && tsc --noEmit",
+		"fix": "biome check --write .",
+		"test": "node --test \"test/**/*.test.ts\"",
+		"test:coverage": "node --test --experimental-test-coverage --test-coverage-lines=85 --test-coverage-branches=80 --test-coverage-functions=80 \"test/unit/**/*.test.ts\" \"test/integration/**/*.test.ts\"",
+		"verify": "npm run check && npm test && npm run test:coverage"
 	}
 }

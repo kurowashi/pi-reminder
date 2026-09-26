@@ -96,8 +96,17 @@ pi --extension /path/to/pi-reminder/src/index.ts
 - 設定が壊れていても警告を出して既定値で動きます。
 - ツール結果を書き換える方式（`tool_result` に追記）も可能ですが、モデルが「ツールの出力の一部」と誤解するので採用していません。
 
-## テスト
+## 開発
 
 ```bash
-npm test
+npm install          # 依存(すべて devDependency。実行時依存はゼロ)
+npm run verify       # 完了条件: biome + tsc + 全テスト + カバレッジ閾値
+npm test             # 全テスト
 ```
+
+`npm run verify` の内訳は `package.json` にある。契約テストは `test/contract/`(登録ツールなし・
+依存 allowlist・import 境界)と `test/ci/`(npm pack の内容)にあり、`src` を Pi のローダー経由で
+読み込んで検証する。カバレッジ閾値は `test/unit/` と `test/integration/` の実行で計測する。
+
+ローカルの git フックは [lefthook](lefthook.yml) が管理する。フックは利便性のためのもので、
+完了条件は常に `npm run verify` が通ること(CI も同じコマンドを Node 22.19 / 24 で実行する)。

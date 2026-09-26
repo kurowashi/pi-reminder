@@ -1,10 +1,10 @@
-import test from "node:test";
 import assert from "node:assert/strict";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { DEFAULT_CONFIG, loadConfig, resolveConfig } from "../src/config.ts";
-import { assistantOutputChars, formatCount, reminderText } from "../src/index.ts";
+import test from "node:test";
+import { DEFAULT_CONFIG, loadConfig, resolveConfig } from "../../src/config.ts";
+import { assistantOutputChars, formatCount, reminderText } from "../../src/index.ts";
 
 function withTempDir<T>(fn: (dir: string) => T): T {
 	const dir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-reminder-"));
@@ -16,13 +16,13 @@ function withTempDir<T>(fn: (dir: string) => T): T {
 }
 
 function withAgentDir<T>(dir: string, fn: () => T): T {
-	const saved = process.env.PI_CODING_AGENT_DIR;
-	process.env.PI_CODING_AGENT_DIR = dir;
+	const saved = process.env["PI_CODING_AGENT_DIR"];
+	process.env["PI_CODING_AGENT_DIR"] = dir;
 	try {
 		return fn();
 	} finally {
-		if (saved === undefined) delete process.env.PI_CODING_AGENT_DIR;
-		else process.env.PI_CODING_AGENT_DIR = saved;
+		if (saved === undefined) delete process.env["PI_CODING_AGENT_DIR"];
+		else process.env["PI_CODING_AGENT_DIR"] = saved;
 	}
 }
 

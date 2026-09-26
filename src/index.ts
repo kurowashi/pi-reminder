@@ -19,13 +19,27 @@
  */
 
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { DEFAULT_CONFIG, globalConfigPath, loadConfig, type ReminderConfig } from "./config.ts";
+import { DEFAULT_CONFIG, loadConfig, type ReminderConfig } from "./config.ts";
 
 export interface ContentBlock {
 	type: string;
 	text?: string;
 	thinking?: string;
 	arguments?: unknown;
+}
+
+/** Characters contributed by one content block. Unknown blocks are free. */
+function blockChars(block: ContentBlock, countThinking: boolean): number {
+	switch (block.type) {
+		case "text":
+			return (block.text ?? "").length;
+		case "thinking":
+			return countThinking ? (block.thinking ?? "").length : 0;
+		case "toolCall":
+			return JSON.stringify(block.arguments ?? {}).length;
+		default:
+			return 0;
+	}
 }
 
 /**
@@ -35,11 +49,7 @@ export interface ContentBlock {
 export function assistantOutputChars(message: { role: string; content?: unknown }, countThinking: boolean): number {
 	if (message.role !== "assistant" || !Array.isArray(message.content)) return 0;
 	let chars = 0;
-	for (const block of message.content as ContentBlock[]) {
-		if (block.type === "text") chars += (block.text ?? "").length;
-		else if (countThinking && block.type === "thinking") chars += (block.thinking ?? "").length;
-		else if (block.type === "toolCall") chars += JSON.stringify(block.arguments ?? {}).length;
-	}
+	for (const block of message.content as ContentBlock[]) chars += blockChars(block, countThinking);
 	return chars;
 }
 
@@ -171,30 +181,51 @@ export default function reminderExtension(pi: ExtensionAPI): void {
 		};
 	});
 
+	/** One command action. Returns false for an unknown action. */
+	const applyAction = (action: string, ctx: ExtensionContext): boolean => {
+		switch (action) {
+			case "on":
+				config = { ...config, enabled: true };
+				return true;
+			case "off":
+				config = { ...config, enabled: false };
+				return true;
+			case "now":
+				pending = true;
+				return true;
+			case "reset":
+				resetBudget();
+				return true;
+			case "reload":
+				reload(ctx);
+				return true;
+			case "status":
+				return true;
+			default:
+				return false;
+		}
+	};
+
+	const statusReport = (): string =>
+		[
+			`pi-reminder: ${config.enabled ? "on" : "off"} (${config.mode}, every ${config.everyChars} chars${
+				config.countThinking ? " incl. thinking" : ""
+			})`,
+			`progress: ${charsSinceInjection}/${config.everyChars}${pending ? " (injection pending)" : ""}`,
+			`prompt: ${config.prompt.trim() ? `${config.prompt.length} chars` : "(empty)"}`,
+			`config: ${globalFile} | ${projectFile}`,
+		].join("\n");
+
 	pi.registerCommand("reminder", {
 		description: "pi-reminder: status | now | reset | on | off | reload",
 		handler: async (args, ctx) => {
 			const action = args.trim().toLowerCase() || "status";
-			if (action === "on") config = { ...config, enabled: true };
-			else if (action === "off") config = { ...config, enabled: false };
-			else if (action === "now") pending = true;
-			else if (action === "reset") resetBudget();
-			else if (action === "reload") reload(ctx);
-			else if (action !== "status") {
+			if (!applyAction(action, ctx)) {
 				ctx.ui.notify("pi-reminder: usage: /reminder [status|now|reset|on|off|reload]", "warning");
 				return;
 			}
-
 			updateStatus(ctx);
-			const lines = [
-				`pi-reminder: ${config.enabled ? "on" : "off"} (${config.mode}, every ${config.everyChars} chars${
-					config.countThinking ? " incl. thinking" : ""
-				})`,
-				`progress: ${charsSinceInjection}/${config.everyChars}${pending ? " (injection pending)" : ""}`,
-				`prompt: ${config.prompt.trim() ? `${config.prompt.length} chars` : "(empty)"}`,
-				`config: ${globalFile} | ${projectFile}`,
-			];
-			ctx.ui.notify(lines.join("\n"), "info");
+			ctx.ui.notify(statusReport(), "info");
 		},
 	});
 }

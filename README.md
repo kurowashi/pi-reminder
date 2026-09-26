@@ -102,7 +102,6 @@ pi --extension /path/to/pi-reminder/src/index.ts
 - 注入は Pi の `context` イベント（次リクエストのメッセージ列に追加）または `turn_end` の boundary entry（`custom_message` + `continue`）で行います。ツール結果を書き換えないので、ツール出力の意味が変わりません。
 - 文字数は `message_end`（確定した assistant メッセージ）で数えます。
 - 設定が壊れていても警告を出して既定値で動きます。
-- ツール結果を書き換える方式（`tool_result` に追記）も可能ですが、モデルが「ツールの出力の一部」と誤解するので採用していません。
 
 ## 開発
 

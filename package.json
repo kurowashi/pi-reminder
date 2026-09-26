@@ -1,0 +1,30 @@
+{
+	"name": "pi-reminder",
+	"version": "0.1.0",
+	"description": "Periodic prompt injection for Pi: remind the model on a character budget",
+	"keywords": [
+		"pi-package",
+		"pi",
+		"reminder",
+		"prompt-injection",
+		"checklist"
+	],
+	"license": "MIT",
+	"type": "module",
+	"pi": {
+		"extensions": [
+			"./src/index.ts"
+		]
+	},
+	"peerDependencies": {
+		"@earendil-works/pi-coding-agent": "*"
+	},
+	"peerDependenciesMeta": {
+		"@earendil-works/pi-coding-agent": {
+			"optional": true
+		}
+	},
+	"scripts": {
+		"test": "node --test test/*.test.ts"
+	}
+}

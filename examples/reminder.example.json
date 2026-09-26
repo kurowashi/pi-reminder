@@ -1,0 +1,8 @@
+{
+	"enabled": true,
+	"everyChars": 20000,
+	"countThinking": true,
+	"mode": "transient",
+	"display": false,
+	"prompt": "作業を止めて、次を確認してください:\n- [ ] ユーザーの要求をすべて満たしたか\n- [ ] 変更をテストしたか\n- [ ] 指示されていない変更をしていないか\n- [ ] 残タスクと次の一手を 1 行で述べよ"
+}

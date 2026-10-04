@@ -42,6 +42,12 @@ function blockChars(block: ContentBlock, countThinking: boolean): number {
 	}
 }
 
+/** The mode part of the status line: the display flag is shown only when it applies. */
+function modeLabel(config: ReminderConfig): string {
+	if (config.mode !== "persistent") return config.mode;
+	return `${config.mode}, display ${config.display ? "on" : "off"}`;
+}
+
 /**
  * Characters of model output in one assistant message: visible text, optionally
  * thinking, and tool-call arguments (the JSON the model wrote for the call).
@@ -208,7 +214,7 @@ export default function reminderExtension(pi: ExtensionAPI): void {
 
 	const statusReport = (): string =>
 		[
-			`pi-reminder: ${config.enabled ? "on" : "off"} (${config.mode}, every ${config.everyChars} chars${
+			`pi-reminder: ${config.enabled ? "on" : "off"} (${modeLabel(config)}, every ${config.everyChars} chars${
 				config.countThinking ? " incl. thinking" : ""
 			})`,
 			`progress: ${charsSinceInjection}/${config.everyChars}${pending ? " (injection pending)" : ""}`,

@@ -271,6 +271,26 @@ test("the /reminder command acts and reports, and rejects unknown actions", asyn
 		assert.match(report, /\(transient, every 1000 chars\)/, "status must report the effective config");
 		assert.match(report, /prompt: 5 chars/);
 
+		fs.writeFileSync(
+			path.join(cwd, ".pi", "reminder.json"),
+			JSON.stringify({ everyChars: 1000, prompt: "CHECK", mode: "persistent", display: true }),
+		);
+		await h.runCommand("reload");
+		await h.runCommand("status");
+		assert.match(
+			h.notifications.at(-1) ?? "",
+			/\(persistent, display on, every 1000 chars/,
+			"status must report the persistent display flag",
+		);
+
+		fs.writeFileSync(
+			path.join(cwd, ".pi", "reminder.json"),
+			JSON.stringify({ everyChars: 1000, prompt: "CHECK", mode: "persistent", display: false }),
+		);
+		await h.runCommand("reload");
+		await h.runCommand("status");
+		assert.match(h.notifications.at(-1) ?? "", /\(persistent, display off, every 1000 chars/);
+
 		await h.runCommand("bogus");
 		assert.match(h.notifications.at(-1) ?? "", /usage: \/reminder/, "unknown actions must warn, not act");
 	} finally {

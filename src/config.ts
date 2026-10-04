@@ -14,9 +14,9 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 
-export const CONFIG_FILE_NAME = "reminder.json";
+const CONFIG_FILE_NAME = "reminder.json";
 
-export type InjectMode = "transient" | "persistent";
+type InjectMode = "transient" | "persistent";
 
 export interface ReminderConfig {
 	/** Master switch. When false the extension only shows status. */
@@ -52,16 +52,16 @@ export interface LoadedReminderConfig {
 	projectFile: string;
 }
 
-export function agentDir(): string {
+function agentDir(): string {
 	const override = process.env["PI_CODING_AGENT_DIR"]?.trim();
 	return override && override.length > 0 ? override : path.join(os.homedir(), ".pi", "agent");
 }
 
-export function globalConfigPath(): string {
+function globalConfigPath(): string {
 	return path.join(agentDir(), CONFIG_FILE_NAME);
 }
 
-export function projectConfigPath(cwd: string): string {
+function projectConfigPath(cwd: string): string {
 	return path.join(cwd, ".pi", CONFIG_FILE_NAME);
 }
 

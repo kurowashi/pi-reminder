@@ -35,6 +35,7 @@
 | 新しいユーザーターンで予算はリセットされる | `test/integration/extension.test.ts` | `src/index.ts` の `before_agent_start` ハンドラ |
 | persistent は `turn_end` で `custom_message`(`customType: "reminder"`)を追加して `continue: true` を返す | `test/integration/extension.test.ts` | `src/index.ts` の `turn_end` ハンドラ |
 | abort / error のターンでは persistent の注入をしない | `test/integration/extension.test.ts` | `src/index.ts` の `turn_end` ハンドラ |
+| `prompt` が空のときは注入も保留もしない(予算は数える) | `test/integration/extension.test.ts` | `src/index.ts` の `hasPrompt` |
 
 ### 設定
 
@@ -106,7 +107,7 @@
    `/reminder` の各アクション(特に `now` / `reload`)が動くこと。
 2. 実モデルで長いターンを回し、閾値超過後の次のリクエストでモデルがリマインダーに反応すること。
    transient は履歴に残らず、persistent は履歴に残って継続が強制されること。
-3. persistent で abort / error になったターンの後も pending が残り、
-   次の completed ターンで注入されること。
+3. persistent で abort / error になったターンの後、次のユーザーターンで予算がリセットされ、
+   その保留は注入されないこと(仕様)。
 4. 設定ファイルを編集して `/reminder reload` すると新しい値が反映されること。
 5. 壊れた JSON や不正値の設定ファイルでもセッションが止まらず、警告が出て既定値で動くこと。

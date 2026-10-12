@@ -1,15 +1,24 @@
 # pi-reminder
 
-LLM が reasoning → tool call → reasoning… と長いループを回る間に、一定量の出力（既定 20,000 文字）ごとにコンフィグで指定したプロンプトを注入する Pi 拡張です。「N 文字ごとにチェックリストを投げて自己確認させる」用途を想定しています。
+長いループで assistant の出力が一定量に達するたびに、設定したプロンプトを注入してモデルに自己確認させる Pi 拡張です。
+「N 文字ごとにチェックリストを見直させる」という使い方を想定しています。
 
 ```
 ユーザー: このバグを直して
   assistant: (thinking 4,000 文字) → read ツール
   assistant: (thinking 3,000 文字) → grep ツール
   assistant: (text 15,000 文字) → edit ツール
-  ★ ここで 20,000 文字を超えたので、次のリクエストにリマインダーを注入
+  ★ 出力が 20,000 文字に達したので、次のリクエストにリマインダーを注入（transient の場合）
   assistant: 「リマインダーを見て、チェックリストを確認しながら続行します…」
 ```
+
+## 使い方
+
+1. インストールする（[インストール](#インストール)）
+2. 設定ファイルに `prompt`（注入する本文）を書く（[設定](#設定)）
+3. フッターの `🔔 8.3k/20k` で、次の注入までの進み具合を確認する
+
+`prompt` が空のままだと、何も注入しません。起動時に警告が表示されます。
 
 ## インストール
 
@@ -17,28 +26,23 @@ LLM が reasoning → tool call → reasoning… と長いループを回る間�
 pi install git:github.com/kurowashi/pi-reminder
 ```
 
-ref を固定する場合は `pi install git:github.com/kurowashi/pi-reminder@<tag|commit>`。
+バージョンを固定する場合は `pi install git:github.com/kurowashi/pi-reminder@<tag|commit>` を使います。
+ローカルの作業コピーを使う場合は `pi install /path/to/pi-reminder` を使います。
 
-ローカルの作業コピーを使う場合:
-
-```bash
-pi install /path/to/pi-reminder
-```
-
-または直接読み込み:
-
-```bash
-pi --extension /path/to/pi-reminder/src/index.ts
-```
+開発とテストは Pi 0.87.1 と Node.js 22.19 以上で行っています。
 
 ## 設定
 
-設定ファイル（後のものが優先）:
+設定は JSON で書きます。設定例は [examples/reminder.example.json](examples/reminder.example.json) にあります。
 
 | ファイル | 対象 |
 |---|---|
-| `~/.pi/agent/reminder.json`（`PI_CODING_AGENT_DIR` で変更可） | ユーザー全体 |
+| `~/.pi/agent/reminder.json`（環境変数 `PI_CODING_AGENT_DIR` で場所を変更できる） | ユーザー全体 |
 | `<cwd>/.pi/reminder.json` | プロジェクト（信頼されたプロジェクトのみ） |
+
+- 両方がある場合は、ユーザー全体の設定を読んだあとにプロジェクトの設定で上書きします。
+- 未信頼のプロジェクトの設定は読みません。`/trust` で信頼してください。
+- 読み込むのは起動時と `/reminder reload` のときです。
 
 ```json
 {
@@ -51,72 +55,72 @@ pi --extension /path/to/pi-reminder/src/index.ts
 }
 ```
 
-| キー | 既定 | 意味 |
+| キー | 既定 | 内容 |
 |---|---|---|
-| `enabled` | `true` | 無効にするとカウントも注入もしない |
-| `everyChars` | `20000` | 注入までの assistant 出力文字数 |
-| `countThinking` | `true` | thinking ブロックも文字数に数える |
-| `mode` | `"transient"` | `"transient"` または `"persistent"`（後述） |
-| `display` | `false` | `persistent` のとき、注入メッセージを画面に表示する |
-| `prompt` | `""` | 注入する本文。空だと何も注入しない |
+| `enabled` | `true` | `false` で、カウントも注入も行わない |
+| `everyChars` | `20000` | 注入までの assistant の出力文字数（正の数） |
+| `countThinking` | `true` | thinking の文字も数える |
+| `mode` | `"transient"` | `"transient"` または `"persistent"`。[注入の方法](#注入の方法)を参照 |
+| `display` | `false` | `persistent` のときだけ有効。注入メッセージを画面に表示する |
+| `prompt` | `""` | 注入する本文 |
 
-## 動作
+不正な値は、警告を表示して既定値を使います。セッションは止まりません。
 
-- 文字数は **assistant メッセージの出力**を数えます:
-  - `text` ブロック（本文）
-  - `toolCall` の引数 JSON（テキストなしでツールだけ呼ぶメッセージも 0 文字にならないように）
-  - `thinking` ブロック（`countThinking` が true のときだけ）
-- ツール結果やユーザー入力は数えません（それは入力であって出力ではありません）。
-- 予算を使い切ると「注入待ち」になり、**次のモデルリクエストに `prompt` を差し込んで**予算をリセットします。
-- **新しいユーザーターンで予算はリセット**されます（1 ターン = 1 予算）。
-- **注入直後の assistant メッセージ 1 件はカウントしません。** リマインダーへの「了解しました」という反応が次の予算を消費して、無限に再注入されるのを防ぐためです。
-- 注入は末尾に追加するだけなのでプロバイダのプロンプトキャッシュを壊しません。
+- `everyChars` が正の数でない、`enabled` / `countThinking` / `display` が真偽値でない、`prompt` が文字列でない: その項目だけ既定値
+- `mode` が `"transient"` / `"persistent"` 以外: `"transient"`
+- JSON が壊れている、またはオブジェクトでない: そのファイルを無視する
 
-### `mode`
+## 注入の仕組み
+
+### 何を数えるか
+
+数えるのは、assistant の出力だけです。
+
+- 本文（`text`）
+- ツール呼び出しの引数（JSON として数える）
+- thinking（`countThinking` が `true` のときだけ）
+
+ツールの結果とユーザーの入力は数えません。
+
+### いつ注入するか
+
+- 出力の合計が `everyChars` に達すると、次の注入機会に注入します。
+- 注入すると予算はリセットされます。
+- 新しいユーザーターンが始まると、予算はリセットされます。1 ターンにつき 1 予算です。
+- 注入直後の assistant の応答 1 件は数えません。リマインダーへの「了解しました」という反応が次の予算を消費して、再注入が続くのを防ぐためです。
+
+### 注入の方法
+
+`mode` で、注入の方法を選びます。
 
 | | `transient`（既定） | `persistent` |
 |---|---|---|
-| 注入先 | 次のリクエストのコンテキストのみ | セッションにメッセージとして保存 |
-| 追加リクエスト | なし（次の自然なリクエストに乗る） | ターン終了時に 1 回 continuation を強制 |
-| 履歴に残るか | 残らない | 残る |
-| 向いている用途 | 「その場で思い出してほしい」軽いリマインダー | 「必ず反応させたい／後のターンでも見せたい」チェックリスト |
+| 注入先 | 次のリクエストにだけ末尾に追加する | ターン終了時に、セッションにメッセージとして保存する |
+| 履歴 | 残らない | 残る |
+| 追加のリクエスト | なし。次の自然なリクエストに乗る | ターン終了時に、続けて 1 回モデルに応答させる |
+| 向いている用途 | その場で思い出してほしい軽い注意 | 必ず反応させたい、後のターンでも見せたいチェックリスト |
 
-`persistent` は `turn_end` で `custom_message` を追加して `continue: true` を返すため、モデルが答えを出して終わろうとしたタイミングでも必ず 1 回リアクションします（abort / error のターンでは注入を保留し、反応スキップ + 予算リセットでループは自然に止まります）。
+`persistent` の注意点は次のとおりです。
 
-> `persistent` は「必ず反応させる」代わりに、モデルがリマインダーに答えてそのまま終了する可能性があります。プロンプトに「確認したら**そのまま作業を続ける**」旨を書いておくと安全です。
+- 中断（`aborted`）やエラーで終わったターンでは、保存も継続もしません。
+- そのターンで溜まっていた予算は、次のユーザーターンでリセットされます。そのため、その注入は行われません。
+- `display: true` にすると、保存されたリマインダーが画面に表示されます。
+- モデルはリマインダーに答えて、そのまま終わることがあります。プロンプトに「確認したら、そのまま作業を続ける」と書いておくと安全です。
 
 ## コマンド
 
-| コマンド | 動作 |
+| コマンド | 内容 |
 |---|---|
-| `/reminder` | 現在の設定と進捗を表示 |
-| `/reminder now` | 次のリクエストで即注入（テスト用） |
-| `/reminder reset` | カウンタをリセット |
-| `/reminder on` / `off` | 一時的に有効／無効 |
+| `/reminder` | 現在の設定と進み具合を表示する |
+| `/reminder now` | 次の注入機会で注入する（テスト用）。`transient` は次のリクエスト、`persistent` はターン終了時。`prompt` が空のときは何もしない |
+| `/reminder reset` | 予算をリセットする |
+| `/reminder on` / `off` | このセッションだけ有効化 / 無効化する。設定ファイルは変更しない |
 | `/reminder reload` | 設定ファイルを読み直す |
 
-フッターには `🔔 8.3k/20k`（注入待ちのときは `→` 付き）を表示します。
+フッターには `🔔 <使った文字数>/<everyChars>` が表示されます。注入待ちのときは `→` が付きます。`enabled` が `false` のときは `🔔 off` です。
 
-## 実装メモ
+## 制限
 
-- 注入は Pi の `context` イベント（次リクエストのメッセージ列に追加）または `turn_end` の boundary entry（`custom_message` + `continue`）で行います。ツール結果を書き換えないので、ツール出力の意味が変わりません。
-- 文字数は `message_end`（確定した assistant メッセージ）で数えます。
-- 設定が壊れていても警告を出して既定値で動きます。
-
-## 開発
-
-```bash
-npm install          # 依存(すべて devDependency。実行時依存はゼロ)
-npm run verify       # 完了条件: biome + tsc + 全テスト + カバレッジ閾値
-npm test             # 全テスト
-```
-
-`npm run verify` の内訳は `package.json` にある。
-契約テストは `test/contract/`(登録ツールなし・依存 allowlist・import 境界)と `test/ci/`(npm pack の内容)にあり、`src` を Pi のローダー経由で読み込んで検証する。
-カバレッジ閾値は `test/unit/` と `test/integration/` の実行で計測する。
-
-ローカルの git フックは [lefthook](lefthook.yml) が管理する。フックは利便性のためのもので、
-完了条件は常に `npm run verify` が通ること(CI も同じコマンドを Node 22.19 / 24 で実行する)。
-フックの有効化は `npx lefthook install` を手動で実行する(`package.json` の lifecycle script には置かない:
-`pi install git:...` は `npm install --omit=dev` を実行するため、
-devDependency の lefthook が無い状態で script が走るとインストールごと失敗する)。
+- `on` / `off` はセッションだけの切り替えです。`/reminder reload` を実行すると、設定ファイルの値に戻ります。
+- 文字数は文字の数です。トークン数ではありません。
+- `transient` の注入は、リクエストの末尾への追加だけです。既存のメッセージは書き換えません。

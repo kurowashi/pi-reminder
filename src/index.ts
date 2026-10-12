@@ -99,6 +99,9 @@ export default function reminderExtension(pi: ExtensionAPI): void {
 		ctx.ui.setStatus("reminder", ctx.ui.theme.fg("accent", `🔔 ${pending ? `${progress} →` : progress}`));
 	};
 
+	/** An empty prompt has nothing to inject, so the budget is counted but never marked pending. */
+	const hasPrompt = (): boolean => config.prompt.trim().length > 0;
+
 	/** A new user turn starts a fresh budget: reminders are per request, not per session. */
 	const resetBudget = (): void => {
 		charsSinceInjection = 0;
@@ -147,13 +150,13 @@ export default function reminderExtension(pi: ExtensionAPI): void {
 		const chars = assistantOutputChars(event.message, config.countThinking);
 		if (chars === 0) return;
 		charsSinceInjection += chars;
-		if (charsSinceInjection >= config.everyChars) pending = true;
+		if (charsSinceInjection >= config.everyChars && hasPrompt()) pending = true;
 		updateStatus(ctx);
 	});
 
 	// Transient injection: append the reminder to the next provider request only.
 	pi.on("context", (event, ctx) => {
-		if (!config.enabled || !pending || config.mode !== "transient") return;
+		if (!config.enabled || !pending || !hasPrompt() || config.mode !== "transient") return;
 		consumeBudget();
 		updateStatus(ctx);
 		return {
@@ -170,7 +173,7 @@ export default function reminderExtension(pi: ExtensionAPI): void {
 	// custom_message draft below turns that into a runnable user message, which is
 	// why the continuation is valid regardless of the preview.
 	pi.on("turn_end", (event, ctx) => {
-		if (!config.enabled || !pending || config.mode !== "persistent") return;
+		if (!config.enabled || !pending || !hasPrompt() || config.mode !== "persistent") return;
 		if (event.outcome !== "completed") return;
 		consumeBudget();
 		updateStatus(ctx);
@@ -197,7 +200,7 @@ export default function reminderExtension(pi: ExtensionAPI): void {
 				config = { ...config, enabled: false };
 				return true;
 			case "now":
-				pending = true;
+				pending = hasPrompt();
 				return true;
 			case "reset":
 				resetBudget();

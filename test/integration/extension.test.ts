@@ -249,6 +249,43 @@ test("persistent mode does not continue on aborted or error turns", () => {
 	});
 });
 
+test("an empty prompt injects nothing in either mode and shows no pending marker", () => {
+	withProject({ everyChars: 10, prompt: "" }, (cwd) => {
+		const h = harness(cwd);
+		start(h);
+		h.emit("message_end", textEvent("x".repeat(20)));
+		assert.equal(h.statuses.at(-1), "🔔 20/10", "the budget is exhausted but nothing is pending");
+		assert.equal(h.emit("context", { type: "context", messages: [] }), undefined);
+	});
+	withProject({ everyChars: 10, prompt: "", mode: "persistent" }, (cwd) => {
+		const h = harness(cwd);
+		start(h);
+		h.emit("message_end", textEvent("x".repeat(20)));
+		assert.equal(h.emit("turn_end", turnEnd()), undefined);
+	});
+});
+
+test("now does not mark a reminder pending without a prompt", async () => {
+	const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "pi-reminder-now-"));
+	const home = fs.mkdtempSync(path.join(os.tmpdir(), "pi-reminder-now-"));
+	const saved = process.env["PI_CODING_AGENT_DIR"];
+	process.env["PI_CODING_AGENT_DIR"] = home;
+	try {
+		fs.mkdirSync(path.join(cwd, ".pi"), { recursive: true });
+		fs.writeFileSync(path.join(cwd, ".pi", "reminder.json"), JSON.stringify({ everyChars: 10, prompt: "" }));
+		const h = harness(cwd);
+		start(h);
+		await h.runCommand("now");
+		assert.equal(h.statuses.at(-1), "🔔 0/10");
+		assert.equal(h.emit("context", { type: "context", messages: [] }), undefined);
+	} finally {
+		if (saved === undefined) delete process.env["PI_CODING_AGENT_DIR"];
+		else process.env["PI_CODING_AGENT_DIR"] = saved;
+		fs.rmSync(cwd, { recursive: true, force: true });
+		fs.rmSync(home, { recursive: true, force: true });
+	}
+});
+
 test("the /reminder command acts and reports, and rejects unknown actions", async () => {
 	const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "pi-reminder-command-"));
 	const home = fs.mkdtempSync(path.join(os.tmpdir(), "pi-reminder-command-"));

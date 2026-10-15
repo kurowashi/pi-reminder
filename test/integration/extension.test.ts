@@ -171,7 +171,7 @@ test("transient mode injects the prompt into the next request exactly once", () 
 });
 
 test("countThinking=false ignores thinking blocks", () => {
-	withProject({ everyChars: 10, prompt: "CHECK", countThinking: false }, (cwd) => {
+	withProject({ everyChars: 10, prompt: "CHECK", countThinking: false, mode: "transient" }, (cwd) => {
 		const h = harness(cwd);
 		start(h);
 		h.emit("message_end", textEvent("ab", "x".repeat(100)));
@@ -180,7 +180,7 @@ test("countThinking=false ignores thinking blocks", () => {
 });
 
 test("the assistant reaction to an injection is not counted as new work", () => {
-	withProject({ everyChars: 10, prompt: "CHECK" }, (cwd) => {
+	withProject({ everyChars: 10, prompt: "CHECK", mode: "transient" }, (cwd) => {
 		const h = harness(cwd);
 		start(h);
 
@@ -295,7 +295,7 @@ test("the /reminder command acts and reports, and rejects unknown actions", asyn
 		fs.mkdirSync(path.join(cwd, ".pi"), { recursive: true });
 		fs.writeFileSync(
 			path.join(cwd, ".pi", "reminder.json"),
-			JSON.stringify({ everyChars: 1000, prompt: "CHECK", countThinking: false }),
+			JSON.stringify({ everyChars: 1000, prompt: "CHECK", countThinking: false, mode: "transient" }),
 		);
 		const h = harness(cwd);
 		start(h);

@@ -49,7 +49,7 @@ pi install git:github.com/kurowashi/pi-reminder
   "enabled": true,
   "everyChars": 20000,
   "countThinking": true,
-  "mode": "transient",
+  "mode": "persistent",
   "display": false,
   "prompt": "作業を止めて、次を確認してください:\n- [ ] ユーザーの要求をすべて満たしたか\n- [ ] 変更をテストしたか\n- [ ] 指示されていない変更をしていないか\n- [ ] 残タスクと次の一手を 1 行で述べよ"
 }
@@ -60,14 +60,14 @@ pi install git:github.com/kurowashi/pi-reminder
 | `enabled` | `true` | `false` で、カウントも注入も行わない |
 | `everyChars` | `20000` | 注入までの assistant の出力文字数（正の数） |
 | `countThinking` | `true` | thinking の文字も数える |
-| `mode` | `"transient"` | `"transient"` または `"persistent"`。[注入の方法](#注入の方法)を参照 |
+| `mode` | `"persistent"` | `"transient"` または `"persistent"`。[注入の方法](#注入の方法)を参照 |
 | `display` | `false` | `persistent` のときだけ有効。注入メッセージを画面に表示する |
 | `prompt` | `""` | 注入する本文 |
 
 不正な値は、警告を表示して既定値を使います。セッションは止まりません。
 
 - `everyChars` が正の数でない、`enabled` / `countThinking` / `display` が真偽値でない、`prompt` が文字列でない: その項目だけ既定値
-- `mode` が `"transient"` / `"persistent"` 以外: `"transient"`
+- `mode` が `"transient"` / `"persistent"` 以外: `"persistent"`
 - JSON が壊れている、またはオブジェクトでない: そのファイルを無視する
 
 ## 注入の仕組み
@@ -93,7 +93,7 @@ pi install git:github.com/kurowashi/pi-reminder
 
 `mode` で、注入の方法を選びます。
 
-| | `transient`（既定） | `persistent` |
+| | `transient` | `persistent`（既定） |
 |---|---|---|
 | 注入先 | 次のリクエストにだけ末尾に追加する | ターン終了時に、セッションにメッセージとして保存する |
 | 履歴 | 残らない | 残る |

@@ -31,6 +31,11 @@ function writeConfig(file: string, value: unknown): void {
 	fs.writeFileSync(file, JSON.stringify(value));
 }
 
+test("the default mode is persistent, so the reminder stays in the transcript", () => {
+	assert.equal(DEFAULT_CONFIG.mode, "persistent");
+	assert.equal(resolveConfig([], []).mode, "persistent");
+});
+
 test("resolveConfig fills defaults and warns instead of throwing on bad values", () => {
 	const warnings: string[] = [];
 	assert.deepEqual(resolveConfig([], warnings), DEFAULT_CONFIG);

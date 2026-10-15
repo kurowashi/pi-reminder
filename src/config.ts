@@ -40,7 +40,7 @@ export const DEFAULT_CONFIG: ReminderConfig = {
 	enabled: true,
 	everyChars: 20_000,
 	countThinking: true,
-	mode: "transient",
+	mode: "persistent",
 	display: false,
 	prompt: "",
 };

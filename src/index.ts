@@ -7,10 +7,10 @@
  * the checklist" pattern for long reasoning -> tool call -> reasoning loops.
  *
  * Injection mode:
- *  - "transient" (default): the reminder is appended to the request context only.
+ *  - "transient": the reminder is appended to the request context only.
  *    Nothing is stored and no extra model request is forced, so the model reads
  *    it together with the next tool result or before its next answer.
- *  - "persistent": at turn end the reminder is stored in the session as a custom
+ *  - "persistent" (default): at turn end the reminder is stored in the session as a custom
  *    message and one continuation is requested, so the model always has to react
  *    to it and later turns still see it.
  *
